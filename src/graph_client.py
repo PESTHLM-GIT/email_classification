@@ -94,3 +94,10 @@ class GraphClient:
         )
         resp.raise_for_status()
         return resp.json()
+
+    def delete_subscription(self, subscription_id: str) -> None:
+        resp = requests.delete(f"{GRAPH_BASE}/subscriptions/{subscription_id}", headers=self._headers(), timeout=30)
+        # En redan utgången/borttagen prenumeration ger 404 - det räknas som
+        # avstängd, inte som ett fel.
+        if resp.status_code not in (204, 404):
+            resp.raise_for_status()

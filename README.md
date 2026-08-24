@@ -96,18 +96,29 @@ Varje push till `main` bygger och deployar automatiskt. Vill du deploya om
 utan att pusha, kör workflowen manuellt via **Actions → Build and deploy
 Python project to Azure Function App - emailclassification → Run workflow**.
 
-### 4. Sätt upp webhook-prenumerationen
+### 4. Slå på/av automatisk klassificering
 
-Anropa (t.ex. med curl, Postman, eller webbläsarens devtools) mot din
-deployade funktion, med function-nyckeln som Azure ger dig under **App keys**:
+Den automatiska klassificeringen (nya mejl klassificeras direkt när de
+kommer in) är **avstängd som standard**. Enklast sätt att testa den (eller
+stänga av den igen) är via samma **Code + Test → Test/Run**-panel i Azure
+Portal som används för `classify_recent` (se avsnittet om att verifiera att
+allt fungerar) - välj bara funktionen `subscribe` eller `unsubscribe`
+istället, inga query-parametrar behövs.
 
-```
-POST https://emailclassification.azurewebsites.net/api/subscribe?code=<function-key>
-```
+- **Slå på**: kör funktionen **`subscribe`**. Det skapar en
+  Graph-prenumeration och sparar den i `Subscriptions`-tabellen. Efter det
+  klassificeras nya mejl automatiskt, vilket innebär att Claude-credits
+  förbrukas löpande. Timer-funktionen (`renew_subscriptions`) håller
+  prenumerationen vid liv automatiskt var 6:e timme tills du stänger av den.
+- **Slå av**: kör funktionen **`unsubscribe`**. Den tar bort alla aktiva
+  prenumerationer, både hos Microsoft Graph och i `Subscriptions`-tabellen -
+  inga fler mejl klassificeras automatiskt förrän du kör `subscribe` igen.
+  Manuell körning av `classify_recent` fungerar oavsett på/av-läge.
 
-Det skapar Graph-prenumerationen och sparar den i `Subscriptions`-tabellen.
-Timer-funktionen (`renew_subscriptions`) körs var 6:e timme och förnyar
-alla aktiva prenumerationer automatiskt så du slipper göra om det manuellt.
+(Vill du hellre göra det via HTTP-anrop, t.ex. med curl: samma två
+endpoints finns på `POST /api/subscribe?code=<function-key>` respektive
+`POST /api/unsubscribe?code=<function-key>`, med function-nyckeln du hittar
+under **App keys**.)
 
 ### 5. Backfill / manuell klassificering
 

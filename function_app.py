@@ -2,7 +2,8 @@
 
 Endpoints:
 - POST/GET /api/notifications  - tar emot Microsoft Graph webhook-notiser om nya mejl.
-- POST /api/subscribe          - skapar (eller återskapar) webhook-prenumerationen.
+- POST /api/subscribe          - slår PÅ automatisk klassificering (skapar webhook-prenumerationen).
+- POST /api/unsubscribe        - slår AV automatisk klassificering (tar bort alla prenumerationer).
 - POST /api/classify-recent    - manuell/backfill-klassificering av senaste mejlen.
 - (timer) renew_subscriptions  - förnyar aktiva prenumerationer var 6:e timme.
 """
@@ -89,6 +90,26 @@ def subscribe(req: func.HttpRequest) -> func.HttpResponse:
     )
 
     return func.HttpResponse(json.dumps(subscription), status_code=201, mimetype="application/json")
+
+
+@app.route(route="unsubscribe", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+def unsubscribe(req: func.HttpRequest) -> func.HttpResponse:
+    """Stänger av den automatiska klassificeringen: tar bort alla kända
+    Graph-prenumerationer så inga fler webhook-notiser (och därmed inga fler
+    Claude-anrop) kommer in. Rör aldrig själva brevlådan."""
+    graph = GraphClient()
+    subscriptions = storage.list_subscriptions()
+
+    removed = []
+    for sub in subscriptions:
+        subscription_id = sub["RowKey"]
+        graph.delete_subscription(subscription_id)
+        storage.delete_subscription(subscription_id)
+        removed.append(subscription_id)
+
+    return func.HttpResponse(
+        json.dumps({"removed": removed}, ensure_ascii=False), status_code=200, mimetype="application/json"
+    )
 
 
 @app.timer_trigger(schedule="0 0 */6 * * *", arg_name="timer", run_on_startup=False)
