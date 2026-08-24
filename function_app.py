@@ -27,7 +27,6 @@ def _process_message(graph: GraphClient, mailbox: str, message_id: str) -> Email
     raw_message = graph.get_message(mailbox, message_id)
     email = EmailMessage.from_graph_message(raw_message, mailbox)
     result = classify(email)
-    graph.set_categories(mailbox, message_id, [result.category])
     storage.save_classification(email, result)
     logger.info(
         "Klassificerade %s som %s (%s, confidence=%.2f)",
@@ -127,7 +126,6 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
     for raw_message in messages:
         email = EmailMessage.from_graph_message(raw_message, mailbox)
         result = classify(email)
-        graph.set_categories(mailbox, email.id, [result.category])
         storage.save_classification(email, result)
         results.append(
             {"id": email.id, "subject": email.subject, "category": result.category, "method": result.method}

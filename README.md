@@ -14,7 +14,9 @@ utan kodändring (se [Utöka till en delad brevlåda](#utöka-till-en-delad-brev
 ## Arkitektur
 
 En Azure Function (Python) som prenumererar på nya mejl via en Microsoft
-Graph webhook (change notification). När ett nytt mejl kommer in:
+Graph webhook (change notification). Motorn är **skrivskyddad mot Outlook** –
+den läser mejl men ändrar, flyttar eller taggar aldrig något i brevlådan.
+Enda output är en rad i en resultat-tabell. När ett nytt mejl kommer in:
 
 1. **Regelmotor** (`src/rules.py`) tittar först på avsändardomän, nyckelord
    och `List-Unsubscribe`-header. Uppenbara fall (t.ex. ett nyhetsbrev med
@@ -22,14 +24,13 @@ Graph webhook (change notification). När ett nytt mejl kommer in:
 2. Osäkra/nyanserade fall skickas till **Claude** (`src/llm_classifier.py`)
    som gör den slutgiltiga bedömningen – regelmotorns preliminära gissning
    skickas med som en hint.
-3. Resultatet sätts som **Outlook-kategori** på mejlet (icke-destruktivt,
-   syns direkt i Outlook, lätt att ångra) och skrivs som en rad i en
-   **Azure Table Storage**-tabell (`Classifications`) – din resultat-tabell.
-   Table Storage ligger i samma lagringskonto som Function App redan kräver,
-   så ingen extra Azure-resurs behöver skapas för det.
+3. Resultatet skrivs som en rad i en **Azure Table Storage**-tabell
+   (`Classifications`) – din resultat-tabell. Table Storage ligger i samma
+   lagringskonto som Function App redan kräver, så ingen extra Azure-resurs
+   behöver skapas för det.
 
 ```
-Nytt mejl -> Graph webhook -> /api/notifications -> regler -> (ev. Claude) -> sätt kategori + spara rad
+Nytt mejl -> Graph webhook -> /api/notifications -> regler -> (ev. Claude) -> spara rad i tabellen
 ```
 
 Inget behöver installeras lokalt: Azure-resurserna sätts upp i webbläsaren
@@ -47,8 +48,13 @@ registrations** → **New registration**:
   **Directory (tenant) ID**.
 - **Certificates & secrets** → skapa en **client secret**, spara värdet direkt.
 - **API permissions** → **Add a permission** → **Microsoft Graph** →
-  **Application permissions** → lägg till `Mail.Read` och `Mail.ReadWrite`.
+  **Application permissions** → lägg till `Mail.Read` (motorn skriver
+  aldrig till brevlådan, så `Mail.ReadWrite` behövs inte).
 - Klicka **Grant admin consent** (kräver admin-behörighet i tenanten).
+
+Har du redan lagt till `Mail.ReadWrite` av misstag: gå till samma
+**API permissions**-sida, klicka på de tre prickarna bredvid `Mail.ReadWrite`
+→ **Remove permission**, enligt principen om minsta möjliga behörighet.
 
 App-only-behörighet ger som standard åtkomst till alla brevlådor i
 tenanten. Vill du begränsa appen till bara din brevlåda (och senare den
@@ -155,4 +161,6 @@ pytest -v
 - HTTP-endpoints kräver en function key (`auth_level=FUNCTION`).
 - `/api/notifications` avvisar notiser vars `clientState` inte matchar
   `GRAPH_WEBHOOK_CLIENT_STATE`, så förfalskade webhook-anrop ignoreras.
-- Outlook-kategorier är icke-destruktiva – inget mejl flyttas eller tas bort.
+- Motorn har bara `Mail.Read`-behörighet mot Graph – den kan inte ändra,
+  flytta eller ta bort något i brevlådan, bara läsa och skriva resultatet
+  till tabellen.

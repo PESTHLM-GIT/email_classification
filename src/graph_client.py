@@ -1,5 +1,6 @@
-"""Tunn wrapper runt Microsoft Graph för att läsa mejl, sätta kategorier och
-hantera webhook-prenumerationer (change notifications).
+"""Tunn, skrivskyddad wrapper runt Microsoft Graph för att läsa mejl och
+hantera webhook-prenumerationer (change notifications). Motorn ändrar
+aldrig något i brevlådan - endast Mail.Read-behörighet krävs.
 
 Autentisering sker app-only (client credentials) så att samma kod fungerar
 oförändrat mot både en personlig brevlåda och en delad brevlåda senare -
@@ -61,11 +62,6 @@ class GraphClient:
         resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
         resp.raise_for_status()
         return resp.json().get("value", [])
-
-    def set_categories(self, mailbox: str, message_id: str, categories: List[str]) -> None:
-        url = f"{GRAPH_BASE}/users/{mailbox}/messages/{message_id}"
-        resp = requests.patch(url, headers=self._headers(), json={"categories": categories}, timeout=30)
-        resp.raise_for_status()
 
     def create_subscription(
         self,
