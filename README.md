@@ -138,6 +138,22 @@ adress – all kod är redan skriven mot `mailbox` som en generisk parameter.
 Se bara till att appregistreringen har åtkomst till den brevlådan (se
 ApplicationAccessPolicy-noten ovan om du har begränsat behörigheten).
 
+## Vägen vidare: orderigenkänning i en delad brevlåda
+
+Detta projekt är en proof-of-concept för ett större slutmål: en delad
+brevlåda dit ordrar kommer in, där en AI läser innehållet, avgör om det
+verkligen är en order, och trycker in resultatet i ett ordersystem via API.
+Grundflödet (läs mejl → klassificera → skriv resultat) är detsamma, men två
+delar behöver byggas ut när vi tar steget dit:
+
+- **Klassificeringsschema**: byt kategori-taggningen i `llm_classifier.py`
+  mot ett verktyg som avgör "är det här en order?" (ja/nej + confidence) och
+  extraherar strukturerade fält (ordernummer, kund, artiklar, leveransadress
+  m.m.) istället för en enkel kategori.
+- **Utgående steg mot ordersystemet**: ett nytt anrop som tar den
+  strukturerade ordern och POST:ar den till ordersystemets API, utöver (eller
+  istället för) att bara spara raden i Table Storage.
+
 ## Justera klassificeringen
 
 - **Regler**: lägg till/ta bort nyckelord och domäner i `src/rules.py`
