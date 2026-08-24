@@ -61,6 +61,8 @@ via Exchange Online PowerShell.
 - Skapa en **Function App** i Azure Portal: Runtime stack **Python 3.11**,
   Consumption-plan (räcker gott för denna volym). En Storage Account skapas
   automatiskt – det är den som huserar resultat-tabellen.
+  - Function App-namnet i det här projektet är **`emailclassification`**,
+    dvs. bas-URL:en är `https://emailclassification.azurewebsites.net`.
 - Under **Settings → Environment variables** (Application settings), sätt
   samma nycklar som i [`local.settings.json.example`](local.settings.json.example):
 
@@ -71,21 +73,22 @@ via Exchange Online PowerShell.
   | `GRAPH_TENANT_ID` / `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET` | Från steg 1 |
   | `MAILBOX_USER_ID` | `petter.edlund@movedigital.se` |
   | `GRAPH_WEBHOOK_CLIENT_STATE` | En slumpad hemlig sträng du hittar på |
-  | `FUNCTION_APP_BASE_URL` | `https://<ditt-function-app-namn>.azurewebsites.net` |
+  | `FUNCTION_APP_BASE_URL` | `https://emailclassification.azurewebsites.net` |
 
   Överväg Key Vault-referenser för hemligheterna i produktion.
 
 ### 3. Deploy via GitHub Actions
 
-- Öppna `.github/workflows/deploy.yml` och sätt `AZURE_FUNCTIONAPP_NAME`
-  till ditt Function App-namn.
-- I Function App i Azure Portal: **Overview → Get publish profile**, ladda
-  ner filen.
-- I GitHub-repot: **Settings → Secrets and variables → Actions → New
-  repository secret**, lägg in innehållet som `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`.
-- Merga till `main` (eller kör workflowen manuellt via **Actions → Deploy to
-  Azure Functions → Run workflow**) – deploy sker automatiskt, helt via
-  webbläsaren.
+Deployen sköts av `.github/workflows/main_emailclassification.yml`, som
+Azures **Deployment Center** genererade automatiskt och pushade till `main`
+när Function App:en kopplades mot detta repo. Den använder OIDC/federated
+credentials (secrets `AZUREAPPSERVICE_CLIENTID_...`, `..._TENANTID_...`,
+`..._SUBSCRIPTIONID_...`, redan tillagda i repots secrets av Azure) – inget
+manuellt publish-profile-steg behövs.
+
+Varje push till `main` bygger och deployar automatiskt. Vill du deploya om
+utan att pusha, kör workflowen manuellt via **Actions → Build and deploy
+Python project to Azure Function App - emailclassification → Run workflow**.
 
 ### 4. Sätt upp webhook-prenumerationen
 
@@ -93,7 +96,7 @@ Anropa (t.ex. med curl, Postman, eller webbläsarens devtools) mot din
 deployade funktion, med function-nyckeln som Azure ger dig under **App keys**:
 
 ```
-POST https://<ditt-function-app-namn>.azurewebsites.net/api/subscribe?code=<function-key>
+POST https://emailclassification.azurewebsites.net/api/subscribe?code=<function-key>
 ```
 
 Det skapar Graph-prenumerationen och sparar den i `Subscriptions`-tabellen.
@@ -106,7 +109,7 @@ Innan webhooken hunnit trigga på nya mejl, eller för att klassificera
 befintliga mejl i inkorgen:
 
 ```
-POST https://<ditt-function-app-namn>.azurewebsites.net/api/classify-recent?code=<function-key>&top=50
+POST https://emailclassification.azurewebsites.net/api/classify-recent?code=<function-key>&top=50
 ```
 
 ## Läsa resultat-tabellen
