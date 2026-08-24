@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "ANTHROPIC_API_KEY": "<din-anthropic-api-nyckel>",
+    "CLAUDE_MODEL": "claude-sonnet-5",
+    "GRAPH_TENANT_ID": "<azure-ad-tenant-id>",
+    "GRAPH_CLIENT_ID": "<app-registrationens-client-id>",
+    "GRAPH_CLIENT_SECRET": "<app-registrationens-client-secret>",
+    "MAILBOX_USER_ID": "petter.edlund@movedigital.se",
+    "GRAPH_WEBHOOK_CLIENT_STATE": "<slumpad-hemlig-strang-du-hittar-pa>",
+    "FUNCTION_APP_BASE_URL": "https://<ditt-function-app-namn>.azurewebsites.net",
+    "RULE_SHORT_CIRCUIT_THRESHOLD": "0.85"
+  }
+}

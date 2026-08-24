@@ -1,0 +1,40 @@
+name: Deploy to Azure Functions
+
+# Deployar utan att något behöver installeras lokalt: pusha till main så
+# bygger och deployar GitHub Actions till Azure Function App åt dig.
+#
+# Krävs innan detta fungerar:
+# 1. Sätt AZURE_FUNCTIONAPP_NAME nedan till ditt Function App-namn.
+# 2. Ladda ner publish profile från Function App i Azure Portal
+#    (Overview -> Get publish profile) och spara den som ett repo-secret
+#    som heter AZURE_FUNCTIONAPP_PUBLISH_PROFILE (Settings -> Secrets and
+#    variables -> Actions).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: satt-ditt-function-app-namn-har
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Installera beroenden i paketmappen
+        run: pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+
+      - name: Deploya till Azure Functions
+        uses: azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: "."
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
