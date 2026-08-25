@@ -104,10 +104,17 @@ def get_stats(recent_limit: int = 20) -> Dict[str, Any]:
         "totalOutputTokens": total_output_tokens,
         "recent": [
             {
+                "id": e.get("RowKey", ""),
                 "subject": e.get("subject", ""),
+                "senderName": e.get("senderName", ""),
+                "senderAddress": e.get("senderAddress", ""),
+                "receivedAt": e.get("receivedAt", ""),
                 "category": e.get("category", ""),
                 "method": e.get("method", ""),
                 "confidence": e.get("confidence", 0),
+                "reasoning": e.get("reasoning", ""),
+                "inputTokens": e.get("inputTokens", 0),
+                "outputTokens": e.get("outputTokens", 0),
                 "costUsd": e.get("costUsd", 0),
                 "classifiedAt": e.get("classifiedAt", ""),
             }

@@ -5,6 +5,7 @@ används direkt. En träff med lägre confidence skickas vidare som en "hint"
 till LLM-klassificeraren, som gör den slutgiltiga bedömningen.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -35,13 +36,18 @@ AD_SENDER_HINTS = ["no-reply", "noreply", "newsletter", "nyhetsbrev", "marketing
 
 AI_KEYWORDS = [
     "artificial intelligence", "generativ ai", "maskininlärning", "machine learning",
-    "chatbot", "large language model", "llm", "gpt", "copilot", " ai ", "ai-modell",
+    "chatbot", "large language model", "llm", "gpt", "copilot", "ai-modell",
     "neural network", "prompt engineering",
 ]
 AI_DOMAINS = [
     "openai.com", "anthropic.com", "claude.ai", "google.ai", "deepmind.com",
     "huggingface.co", "microsoft.com", "mistral.ai", "cohere.com", "perplexity.ai",
 ]
+
+# Matchar "ai" som ett eget ord (gränsat av icke-bokstäver: mellanslag, skiljetecken,
+# apostrof, radslut) - t.ex. "AI's", "AI-driven", "(AI)". Ordgräns istället för
+# bokstavliga mellanslag runt " ai " missade tidigare exakt såna fall.
+_AI_WORD_RE = re.compile(r"\bai\b")
 
 
 def evaluate(email: EmailMessage) -> Optional[RuleMatch]:
@@ -56,11 +62,19 @@ def evaluate(email: EmailMessage) -> Optional[RuleMatch]:
         return RuleMatch(CATEGORY_SPAM, confidence, f"{spam_hits} skräpmejl-signalord i ämne/förhandsvisning")
 
     ai_domain_hit = any(domain in sender for domain in AI_DOMAINS)
-    ai_kw_hits = sum(1 for kw in AI_KEYWORDS if kw in text)
+    ai_kw_hits = sum(1 for kw in AI_KEYWORDS if kw in text) + (1 if _AI_WORD_RE.search(text) else 0)
     if ai_domain_hit or ai_kw_hits >= 2:
         confidence = 0.9 if ai_domain_hit else min(0.5 + 0.15 * ai_kw_hits, 0.9)
         reason = "avsändardomän kopplad till AI" if ai_domain_hit else f"{ai_kw_hits} AI-relaterade nyckelord"
         return RuleMatch(CATEGORY_AI, confidence, reason)
+
+    if ai_kw_hits >= 1:
+        # Svagt AI-signal (t.ex. bara ordet "AI" en gång) - inte starkt nog för att
+        # regelmotorn ska slå fast AI-relaterat själv, men starkt nog för att INTE
+        # blint anta Reklam bara för att en List-Unsubscribe-header också finns.
+        # Prioriteringen Skräpmejl > AI-relaterat > Reklam > Privat avgörs då av
+        # Claude istället, som väger in hela innehållet.
+        return None
 
     ad_kw_hits = sum(1 for kw in AD_KEYWORDS if kw in text)
     ad_sender_hit = any(hint in sender for hint in AD_SENDER_HINTS)

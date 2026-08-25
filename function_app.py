@@ -164,10 +164,12 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
         )
     top = int(req.params.get("top", "20"))
+    since = req.params.get("since")
+    until = req.params.get("until")
 
     start = time.perf_counter()
     graph = GraphClient()
-    messages = graph.list_recent_messages(mailbox, top=top)
+    messages = graph.list_recent_messages(mailbox, top=top, since=since, until=until)
 
     results = []
     for raw_message in messages:

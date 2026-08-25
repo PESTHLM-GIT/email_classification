@@ -162,8 +162,16 @@ funktioner efter att Easy Auth är aktiverat - använd dashboarden istället.
 ### 6. Backfill / manuell klassificering
 
 Innan webhooken hunnit trigga på nya mejl, eller för att klassificera
-befintliga mejl i inkorgen: knappen **"Klassificera nu"** i dashboarden,
-eller `POST /api/classify-recent?top=50` från en inloggad session.
+befintliga mejl i inkorgen: sektionen **"Klassificera manuellt"** i
+dashboarden, med två lägen:
+
+- **Senaste antal mejl** - klassificerar de N senaste (mottagningsordning).
+  Motsvarar `POST /api/classify-recent?top=50`.
+- **Mellan två tidpunkter** - klassificerar alla mejl mottagna i ett
+  datumintervall (du väljer i din lokala tidszon, sidan räknar om till UTC
+  åt dig), upp till 200 mejl. Motsvarar
+  `POST /api/classify-recent?since=<ISO8601>&until=<ISO8601>` (endera kan
+  utelämnas).
 
 ## Läsa resultat-tabellen
 
@@ -188,7 +196,12 @@ Azure-förbrukning (mätt körtid, jämförd med Flex Consumptions fria kvot på
 250 000 anrop / 100 000 GB-sekunder per månad - **en uppskattning för att ge
 en känsla för läget, inte exakt fakturering**; exakta siffror finns i Azure
 Portal under **Cost Management**), samt en tabell med de senaste
-klassificeringarna.
+klassificeringarna (sorterad på när de klassificerades, men kolumnen
+**Mottaget (UTC)** visar när mejlet faktiskt kom in - inte
+klassificeringstidpunkten, för att undvika förväxling). Klicka på en rad
+för att se övrig data som också finns i `Classifications`-tabellen:
+avsändare, motivering från Claude, token-antal och exakt
+klassificeringstidpunkt.
 
 Öppna den på:
 

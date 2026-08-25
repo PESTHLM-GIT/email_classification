@@ -35,8 +35,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   button.toggle-off { background: var(--green); color: white; }
   button.refresh, button.manual { background: var(--card); border: 1px solid var(--border); color: var(--text); }
   button:disabled { opacity: .5; cursor: wait; }
-  .manual-row { display: flex; align-items: center; gap: .6rem; }
-  .manual-row input { width: 5rem; padding: .5rem; border: 1px solid var(--border); border-radius: 6px; font-size: .9rem; }
+  .manual-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .manual-row input[type="number"] { width: 5rem; padding: .5rem; border: 1px solid var(--border); border-radius: 6px; font-size: .9rem; }
+  .manual-row input[type="datetime-local"] { padding: .45rem; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; }
+  .mode-row { display: flex; gap: 1.2rem; margin-bottom: .8rem; font-size: .9rem; }
+  .mode-row label { display: flex; align-items: center; gap: .35rem; cursor: pointer; }
+  tr.data-row { cursor: pointer; }
+  tr.data-row:hover { background: #fafbfc; }
+  tr.detail-row td { background: #fafbfc; padding: 1rem 1.3rem; }
+  .detail-grid { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; font-size: .85rem; }
+  .detail-grid dt { color: var(--muted); font-weight: 600; }
+  .detail-grid dd { margin: 0; }
   table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: .6rem .9rem; font-size: .85rem; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; background: #fafbfc; }
@@ -94,9 +103,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <section>
   <h2 class="section-title">Klassificera manuellt</h2>
   <div class="card">
-    <div class="manual-row">
+    <div class="mode-row">
+      <label><input type="radio" name="manualMode" value="top" checked> Senaste antal mejl</label>
+      <label><input type="radio" name="manualMode" value="range"> Mellan två tidpunkter</label>
+    </div>
+    <div class="manual-row" id="manualTopRow">
       <label for="manualTop">Antal senaste mejl:</label>
       <input type="number" id="manualTop" value="20" min="1" max="200">
+    </div>
+    <div class="manual-row" id="manualRangeRow" style="display: none;">
+      <label for="manualSince">Från:</label>
+      <input type="datetime-local" id="manualSince">
+      <label for="manualUntil">Till:</label>
+      <input type="datetime-local" id="manualUntil">
+      <span class="sub">(max 200 mejl inom intervallet, mottagningstid)</span>
+    </div>
+    <div class="manual-row">
       <button id="manualBtn" class="manual">Klassificera nu</button>
       <span id="manualStatus" class="sub"></span>
     </div>
@@ -112,10 +134,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <h2 class="section-title">Senaste klassificeringarna</h2>
   <table>
     <thead>
-      <tr><th>Ämne</th><th>Kategori</th><th>Metod</th><th>Kostnad</th><th>Tidpunkt (UTC)</th></tr>
+      <tr><th>Ämne</th><th>Kategori</th><th>Metod</th><th>Kostnad</th><th>Mottaget (UTC)</th></tr>
     </thead>
     <tbody id="recentBody"></tbody>
   </table>
+  <p class="note">Klicka på en rad för avsändare, motivering och övrig data som också finns i Classifications-tabellen.</p>
 </section>
 
 <script>
@@ -202,16 +225,44 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     const body = document.getElementById("recentBody");
     body.innerHTML = "";
-    (data.recent || []).forEach((row) => {
+    (data.recent || []).forEach((row, index) => {
       const tr = document.createElement("tr");
+      tr.className = "data-row";
       const catClass = "cat-" + String(row.category || "").replace(/\\s/g, "");
       tr.innerHTML =
         "<td>" + escapeHtml(row.subject) + "</td>" +
         '<td><span class="cat-pill ' + catClass + '">' + escapeHtml(row.category) + "</span></td>" +
         '<td class="method-' + escapeHtml(row.method) + '">' + escapeHtml(row.method) + "</td>" +
         "<td>" + fmtUsd(row.costUsd) + "</td>" +
-        "<td>" + escapeHtml(row.classifiedAt) + "</td>";
+        "<td>" + escapeHtml(row.receivedAt) + "</td>";
+
+      const detailTr = document.createElement("tr");
+      detailTr.className = "detail-row";
+      detailTr.style.display = "none";
+      const detailTd = document.createElement("td");
+      detailTd.colSpan = 5;
+      const fields = [
+        ["Avsändare", (row.senderName || "") + " <" + (row.senderAddress || "") + ">"],
+        ["Mottaget (UTC)", row.receivedAt],
+        ["Klassificerat (UTC)", row.classifiedAt],
+        ["Confidence", row.confidence],
+        ["Metod", row.method],
+        ["Motivering", row.reasoning],
+        ["Tokens (in/ut)", (row.inputTokens || 0) + " / " + (row.outputTokens || 0)],
+        ["Kostnad", fmtUsd(row.costUsd)],
+      ];
+      detailTd.innerHTML =
+        '<dl class="detail-grid">' +
+        fields.map(([label, value]) => "<dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(value) + "</dd>").join("") +
+        "</dl>";
+      detailTr.appendChild(detailTd);
+
+      tr.addEventListener("click", () => {
+        detailTr.style.display = detailTr.style.display === "none" ? "" : "none";
+      });
+
       body.appendChild(tr);
+      body.appendChild(detailTr);
     });
     if ((data.recent || []).length === 0) {
       body.innerHTML = '<tr><td colspan="5">Inga klassificeringar ännu.</td></tr>';
@@ -234,14 +285,43 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
   }
 
+  // datetime-local ger lokal tid utan tidszon (t.ex. "2026-08-20T14:30") -
+  // Graph vill ha UTC med Z-suffix, så vi tolkar värdet som lokal tid och
+  // konverterar via Date, som webbläsaren redan känner till användarens tidszon för.
+  function localInputToIsoUtc(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+  }
+
   async function classifyNow() {
     const btn = document.getElementById("manualBtn");
     const statusEl = document.getElementById("manualStatus");
-    const top = document.getElementById("manualTop").value || "20";
+    const mode = document.querySelector('input[name="manualMode"]:checked').value;
+
+    let query = "";
+    if (mode === "range") {
+      const since = localInputToIsoUtc(document.getElementById("manualSince").value);
+      const until = localInputToIsoUtc(document.getElementById("manualUntil").value);
+      if (!since && !until) {
+        document.getElementById("error").innerHTML =
+          '<div class="error">Ange minst "Från" eller "Till" för intervall-läget.</div>';
+        return;
+      }
+      const params = new URLSearchParams();
+      if (since) params.set("since", since);
+      if (until) params.set("until", until);
+      query = "?" + params.toString();
+    } else {
+      const top = document.getElementById("manualTop").value || "20";
+      query = "?top=" + encodeURIComponent(top);
+    }
+
     btn.disabled = true;
     statusEl.textContent = "Klassificerar...";
     try {
-      const res = await fetch("/api/classify-recent?top=" + encodeURIComponent(top), { method: "POST" });
+      const res = await fetch("/api/classify-recent" + query, { method: "POST" });
       if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
       const data = await res.json();
       statusEl.textContent = "Klart: " + data.classified + " mejl klassificerade.";
@@ -254,6 +334,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       btn.disabled = false;
     }
   }
+
+  document.querySelectorAll('input[name="manualMode"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const isRange = document.querySelector('input[name="manualMode"]:checked').value === "range";
+      document.getElementById("manualTopRow").style.display = isRange ? "none" : "";
+      document.getElementById("manualRangeRow").style.display = isRange ? "" : "none";
+    });
+  });
 
   document.getElementById("manualBtn").addEventListener("click", classifyNow);
   document.getElementById("refreshBtn").addEventListener("click", loadStats);

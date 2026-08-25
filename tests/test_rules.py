@@ -54,6 +54,21 @@ def test_detects_ai_related_keywords():
     assert match.category == CATEGORY_AI
 
 
+def test_ai_signal_prevents_blind_ad_short_circuit():
+    # Verkligt fall: "AI's creative funding continues" missades tidigare av
+    # AI-regeln (bokstavligt " ai " matchar inte "AI's" - ingen mellanslag
+    # runt ordet), och föll då rakt igenom till Reklam-regeln bara för att
+    # det var ett nyhetsbrev med List-Unsubscribe. Nu ska ett AI-signalord
+    # stoppa det blinda Reklam-antagandet och lämna avgörandet till Claude.
+    email = make_email(
+        subject="AI's creative funding continues",
+        sender_address="newsletter@example.com",
+        body_preview="Sign up for our newsletter to stay updated",
+        has_list_unsubscribe=True,
+    )
+    assert rules.evaluate(email) is None
+
+
 def test_detects_spam_keywords():
     email = make_email(
         subject="DU HAR VUNNIT ett pris!!!",

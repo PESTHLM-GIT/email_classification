@@ -10,7 +10,7 @@ det är bara `mailbox`-parametern (UPN eller objekt-id) som ändras.
 import os
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import msal
 import requests
@@ -56,9 +56,35 @@ class GraphClient:
         resp.raise_for_status()
         return resp.json()
 
-    def list_recent_messages(self, mailbox: str, top: int = 20) -> List[Dict[str, Any]]:
+    # Övre gräns när man klassificerar ett datumintervall istället för "senaste
+    # N" - skydd mot att av misstag skicka tusentals mejl till Claude på en gång.
+    MAX_MESSAGES_PER_RANGE = 200
+
+    def list_recent_messages(
+        self,
+        mailbox: str,
+        top: int = 20,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Hämtar mejl från inkorgen. Utan `since`/`until`: de `top` senaste
+        (mottagningsordning). Med `since` och/eller `until` (ISO 8601, t.ex.
+        2026-08-20T00:00:00Z): alla mejl mottagna i det intervallet, upp till
+        MAX_MESSAGES_PER_RANGE - `top` ignoreras då."""
         url = f"{GRAPH_BASE}/users/{mailbox}/mailFolders('Inbox')/messages"
-        params = {"$top": top, "$select": MESSAGE_SELECT, "$orderby": "receivedDateTime desc"}
+        params: Dict[str, Any] = {"$select": MESSAGE_SELECT, "$orderby": "receivedDateTime desc"}
+
+        if since or until:
+            filters = []
+            if since:
+                filters.append(f"receivedDateTime ge {since}")
+            if until:
+                filters.append(f"receivedDateTime le {until}")
+            params["$filter"] = " and ".join(filters)
+            params["$top"] = self.MAX_MESSAGES_PER_RANGE
+        else:
+            params["$top"] = top
+
         resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
         resp.raise_for_status()
         return resp.json().get("value", [])
