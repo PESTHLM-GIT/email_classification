@@ -93,7 +93,9 @@ def get_stats(recent_limit: int = 20) -> Dict[str, Any]:
         total_input_tokens += int(entity.get("inputTokens", 0) or 0)
         total_output_tokens += int(entity.get("outputTokens", 0) or 0)
 
-    recent = sorted(entities, key=lambda e: e.get("classifiedAt", ""), reverse=True)[:recent_limit]
+    # Fallande på mottagningstid, som inkorgen - inte på när vi klassificerade
+    # det, vilket kan hamna i en annan ordning (t.ex. vid backfill).
+    recent = sorted(entities, key=lambda e: e.get("receivedAt", ""), reverse=True)[:recent_limit]
 
     return {
         "total": len(entities),

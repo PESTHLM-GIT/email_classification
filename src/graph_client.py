@@ -16,7 +16,10 @@ import msal
 import requests
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
-MESSAGE_SELECT = "id,subject,from,bodyPreview,receivedDateTime,categories,internetMessageHeaders"
+MESSAGE_SELECT = "id,subject,from,body,receivedDateTime,categories,internetMessageHeaders"
+# Ber Graph returnera body.content som ren text istället för HTML, så
+# klassificeraren slipper HTML-taggar i det den läser.
+_TEXT_BODY_HEADERS = {"Prefer": 'outlook.body-content-type="text"'}
 
 # Microsoft Graph tillåter max ~4230 minuter (strax under 3 dygn) för
 # mail-resursen. Timer-funktionen förnyar prenumerationen med god marginal
@@ -50,9 +53,12 @@ class GraphClient:
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self._get_token()}", "Content-Type": "application/json"}
 
+    def _message_headers(self) -> Dict[str, str]:
+        return {**self._headers(), **_TEXT_BODY_HEADERS}
+
     def get_message(self, mailbox: str, message_id: str) -> Dict[str, Any]:
         url = f"{GRAPH_BASE}/users/{mailbox}/messages/{message_id}"
-        resp = requests.get(url, headers=self._headers(), params={"$select": MESSAGE_SELECT}, timeout=30)
+        resp = requests.get(url, headers=self._message_headers(), params={"$select": MESSAGE_SELECT}, timeout=30)
         resp.raise_for_status()
         return resp.json()
 
@@ -85,7 +91,7 @@ class GraphClient:
         else:
             params["$top"] = top
 
-        resp = requests.get(url, headers=self._headers(), params=params, timeout=30)
+        resp = requests.get(url, headers=self._message_headers(), params=params, timeout=30)
         resp.raise_for_status()
         return resp.json().get("value", [])
 

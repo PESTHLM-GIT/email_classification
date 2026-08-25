@@ -1,24 +1,20 @@
 from unittest.mock import patch
 
 from src.classifier import classify
-from src.config import CATEGORY_ADS, CATEGORY_PERSONAL
+from src.config import CATEGORY_ADS, CATEGORY_AI, CATEGORY_PERSONAL
 from src.models import ClassificationResult
 
 from .test_rules import make_email
 
 
 def test_short_circuits_on_high_confidence_rule():
-    email = make_email(
-        subject="REA - 50% rabatt hela helgen",
-        sender_address="nyhetsbrev@butik.se",
-        has_list_unsubscribe=True,
-    )
+    email = make_email(subject="Din faktura", sender_address="billing@openai.com")
 
     with patch("src.classifier.classify_with_llm") as mock_llm:
         result = classify(email)
 
     mock_llm.assert_not_called()
-    assert result.category == CATEGORY_ADS
+    assert result.category == CATEGORY_AI
     assert result.method == "rule"
 
 

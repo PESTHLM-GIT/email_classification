@@ -134,7 +134,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <h2 class="section-title">Senaste klassificeringarna</h2>
   <table>
     <thead>
-      <tr><th>Ämne</th><th>Kategori</th><th>Metod</th><th>Kostnad</th><th>Mottaget (UTC)</th></tr>
+      <tr><th>Ämne</th><th>Kategori</th><th>Metod</th><th>Kostnad</th><th>Mottaget</th></tr>
     </thead>
     <tbody id="recentBody"></tbody>
   </table>
@@ -150,6 +150,18 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   function fmtUsd(n) {
     return "$" + Number(n || 0).toFixed(4);
+  }
+
+  // Tabellen lagrar allt i UTC (Azure Table Storage-konvention); visar det
+  // i webbläsarens lokala tidszon istället, annars läser folk fel tid.
+  function fmtLocalTime(isoString) {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString(undefined, {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
   }
 
   async function loadStats() {
@@ -234,7 +246,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         '<td><span class="cat-pill ' + catClass + '">' + escapeHtml(row.category) + "</span></td>" +
         '<td class="method-' + escapeHtml(row.method) + '">' + escapeHtml(row.method) + "</td>" +
         "<td>" + fmtUsd(row.costUsd) + "</td>" +
-        "<td>" + escapeHtml(row.receivedAt) + "</td>";
+        "<td>" + escapeHtml(fmtLocalTime(row.receivedAt)) + "</td>";
 
       const detailTr = document.createElement("tr");
       detailTr.className = "detail-row";
@@ -243,8 +255,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       detailTd.colSpan = 5;
       const fields = [
         ["Avsändare", (row.senderName || "") + " <" + (row.senderAddress || "") + ">"],
-        ["Mottaget (UTC)", row.receivedAt],
-        ["Klassificerat (UTC)", row.classifiedAt],
+        ["Mottaget", fmtLocalTime(row.receivedAt)],
+        ["Klassificerat", fmtLocalTime(row.classifiedAt)],
         ["Confidence", row.confidence],
         ["Metod", row.method],
         ["Motivering", row.reasoning],

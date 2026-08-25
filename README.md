@@ -196,10 +196,12 @@ Azure-förbrukning (mätt körtid, jämförd med Flex Consumptions fria kvot på
 250 000 anrop / 100 000 GB-sekunder per månad - **en uppskattning för att ge
 en känsla för läget, inte exakt fakturering**; exakta siffror finns i Azure
 Portal under **Cost Management**), samt en tabell med de senaste
-klassificeringarna (sorterad på när de klassificerades, men kolumnen
-**Mottaget (UTC)** visar när mejlet faktiskt kom in - inte
-klassificeringstidpunkten, för att undvika förväxling). Klicka på en rad
-för att se övrig data som också finns i `Classifications`-tabellen:
+klassificeringarna - fallande på mottagningstid, som inkorgen. Kolumnen
+**Mottaget** visar när mejlet faktiskt kom in, inte klassificeringstid-
+punkten (för att undvika förväxling), och tider visas i din webbläsares
+lokala tidszon (datat lagras i UTC i tabellen, men konverteras för visning).
+Klicka på en rad för att se övrig data som också finns i
+`Classifications`-tabellen:
 avsändare, motivering från Claude, token-antal och exakt
 klassificeringstidpunkt.
 
@@ -241,11 +243,17 @@ delar behöver byggas ut när vi tar steget dit:
 
 ## Justera klassificeringen
 
-- **Regler**: lägg till/ta bort nyckelord och domäner i `src/rules.py`
-  (`SPAM_KEYWORDS`, `AD_KEYWORDS`, `AI_KEYWORDS`, `AI_DOMAINS`, m.fl.).
+- **Regler**: `src/rules.py` är medvetet minimal - bara `SPAM_KEYWORDS`
+  (uppenbar skräppost) och `AI_DOMAINS` (kända AI-leverantörers domäner).
+  Allt annat, inklusive gränsdragningen Reklam/AI-relaterat, avgörs av
+  Claude - ett nyckelordsbaserat regelverk för den bedömningen visade sig
+  både svårt att underhålla och sämre än att fråga modellen.
 - **LLM-prompt/kategoribeskrivningar**: `src/llm_classifier.py`.
 - **Tröskel för när en regelträff används direkt utan Claude**:
   `RULE_SHORT_CIRCUIT_THRESHOLD` (miljövariabel, default `0.85`).
+- **Hur mycket av mejlet Claude ser**: `BODY_MAX_CHARS` i `src/models.py`
+  (default 3000 tecken av det faktiska innehållet, inte bara Graphs korta
+  `bodyPreview`). Högre värde = bättre täckning men fler tokens per mejl.
 
 ## Köra tester
 

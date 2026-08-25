@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 from typing import Any, Dict
 
+# Hur mycket av mejlets faktiska innehåll (inte bara Graphs korta
+# auto-genererade bodyPreview på ~255 tecken) som skickas vidare till
+# regelmotorn/Claude. Innehåll som klipps bort ses aldrig av klassificeraren -
+# högre värde ger bättre täckning men fler tokens (=högre kostnad) per mejl.
+BODY_MAX_CHARS = 3000
+
 
 @dataclass
 class EmailMessage:
@@ -20,12 +26,13 @@ class EmailMessage:
             h["name"].lower(): h.get("value", "")
             for h in (message.get("internetMessageHeaders") or [])
         }
+        body_content = ((message.get("body") or {}).get("content") or "").strip()
         return cls(
             id=message["id"],
             subject=message.get("subject", "") or "",
             sender_name=sender.get("name", "") or "",
             sender_address=(sender.get("address", "") or "").lower(),
-            body_preview=message.get("bodyPreview", "") or "",
+            body_preview=body_content[:BODY_MAX_CHARS],
             received_at=message.get("receivedDateTime", "") or "",
             mailbox=mailbox,
             has_list_unsubscribe="list-unsubscribe" in headers,
