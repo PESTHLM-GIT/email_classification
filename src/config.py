@@ -20,3 +20,21 @@ MAILBOX_USER_ID = os.environ.get("MAILBOX_USER_ID", "")
 # Delad hemlighet som Microsoft Graph skickar tillbaka i varje webhook-notis
 # (clientState) så vi kan avvisa förfalskade anrop mot /api/notifications.
 GRAPH_WEBHOOK_CLIENT_STATE = os.environ.get("GRAPH_WEBHOOK_CLIENT_STATE", "")
+
+# USD per 1 miljon tokens, används enbart för att uppskatta kostnaden som
+# visas i dashboarden - motsvarar Anthropics officiella listpriser.
+CLAUDE_PRICING_PER_MILLION_TOKENS = {
+    "claude-sonnet-5": {"input": 2.00, "output": 10.00},
+    "claude-opus-5": {"input": 5.00, "output": 25.00},
+    "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
+}
+
+# Function App:ens konfigurerade minne (GB), används för att uppskatta
+# GB-sekunder-förbrukning i dashboarden. Måste stämma med instansminnet i
+# Azure Portal (Function App -> Overview -> Instance Memory).
+FUNCTION_APP_MEMORY_GB = float(os.environ.get("FUNCTION_APP_MEMORY_GB", "0.5"))
+
+# Azure Functions Flex Consumption: gratis kvot per månad och prenumeration
+# (källa: azure.microsoft.com/pricing/details/functions, on-demand-läge).
+AZURE_FREE_EXECUTIONS_PER_MONTH = 250_000
+AZURE_FREE_GB_SECONDS_PER_MONTH = 100_000

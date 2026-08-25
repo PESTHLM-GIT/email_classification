@@ -99,21 +99,24 @@ Python project to Azure Function App - emailclassification → Run workflow**.
 ### 4. Slå på/av automatisk klassificering
 
 Den automatiska klassificeringen (nya mejl klassificeras direkt när de
-kommer in) är **avstängd som standard**. Enklast sätt att testa den (eller
-stänga av den igen) är via samma **Code + Test → Test/Run**-panel i Azure
-Portal som används för `classify_recent` (se avsnittet om att verifiera att
-allt fungerar) - välj bara funktionen `subscribe` eller `unsubscribe`
-istället, inga query-parametrar behövs.
+kommer in) är **avstängd som standard**. Enklast sätt att styra den är via
+[dashboarden](#dashboard) - en på/av-knapp i webbläsaren. Alternativt via
+samma **Code + Test → Test/Run**-panel i Azure Portal som används för
+`classify_recent` (se avsnittet om att verifiera att allt fungerar) - välj
+bara funktionen `subscribe` eller `unsubscribe` istället, inga
+query-parametrar behövs.
 
-- **Slå på**: kör funktionen **`subscribe`**. Det skapar en
-  Graph-prenumeration och sparar den i `Subscriptions`-tabellen. Efter det
-  klassificeras nya mejl automatiskt, vilket innebär att Claude-credits
-  förbrukas löpande. Timer-funktionen (`renew_subscriptions`) håller
-  prenumerationen vid liv automatiskt var 6:e timme tills du stänger av den.
-- **Slå av**: kör funktionen **`unsubscribe`**. Den tar bort alla aktiva
-  prenumerationer, både hos Microsoft Graph och i `Subscriptions`-tabellen -
-  inga fler mejl klassificeras automatiskt förrän du kör `subscribe` igen.
-  Manuell körning av `classify_recent` fungerar oavsett på/av-läge.
+- **Slå på**: kör funktionen **`subscribe`** (eller knappen i dashboarden).
+  Det skapar en Graph-prenumeration och sparar den i
+  `Subscriptions`-tabellen. Efter det klassificeras nya mejl automatiskt,
+  vilket innebär att Claude-credits förbrukas löpande. Timer-funktionen
+  (`renew_subscriptions`) håller prenumerationen vid liv automatiskt var 6:e
+  timme tills du stänger av den.
+- **Slå av**: kör funktionen **`unsubscribe`** (eller knappen i
+  dashboarden). Den tar bort alla aktiva prenumerationer, både hos
+  Microsoft Graph och i `Subscriptions`-tabellen - inga fler mejl
+  klassificeras automatiskt förrän du slår på igen. Manuell körning av
+  `classify_recent` fungerar oavsett på/av-läge.
 
 (Vill du hellre göra det via HTTP-anrop, t.ex. med curl: samma två
 endpoints finns på `POST /api/subscribe?code=<function-key>` respektive
@@ -140,6 +143,30 @@ motivering och tidsstämpel. Enklast sätt att titta på den utan installation:
 - **Excel** kan koppla upp sig direkt mot Table Storage via Power Query
   (Data → Get Data → From Azure → From Azure Table Storage) om du vill
   bygga en rapport/pivot ovanpå.
+
+## Dashboard
+
+En enkel statussida finns på `/api/dashboard` - visar om automatisk
+klassificering är på eller av (med en knapp för att slå av/på direkt),
+totalt antal klassificerade mejl, Claude-kostnad hittills (uträknad från de
+faktiska token-antalen i varje API-svar × Anthropics listpris, inte en
+gissning), fördelning per kategori och regelmotor/Claude, en ungefärlig
+Azure-förbrukning (mätt körtid, jämförd med Flex Consumptions fria kvot på
+250 000 anrop / 100 000 GB-sekunder per månad - **en uppskattning för att ge
+en känsla för läget, inte exakt fakturering**; exakta siffror finns i Azure
+Portal under **Cost Management**), samt en tabell med de senaste
+klassificeringarna.
+
+Öppna den på:
+
+```
+https://emailclassification.azurewebsites.net/api/dashboard?code=<function-key>
+```
+
+Function-nyckeln hittar du under Function App:ens **App keys**. Bokmärk
+länken med nyckeln inkluderad - sidan läser den ur webbläsarens adressfält
+och återanvänder den automatiskt för alla anrop den gör (statistik,
+på/av-knappen).
 
 ## Utöka till en delad brevlåda
 

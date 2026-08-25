@@ -12,6 +12,7 @@ from .config import (
     CATEGORY_PERSONAL,
     CATEGORY_SPAM,
     CLAUDE_MODEL,
+    CLAUDE_PRICING_PER_MILLION_TOKENS,
 )
 from .models import ClassificationResult, EmailMessage
 
@@ -93,10 +94,20 @@ def classify_with_llm(
     tool_use = next(block for block in response.content if block.type == "tool_use")
     result = tool_use.input
 
+    input_tokens = response.usage.input_tokens
+    output_tokens = response.usage.output_tokens
+    pricing = CLAUDE_PRICING_PER_MILLION_TOKENS.get(CLAUDE_MODEL)
+    cost_usd = (
+        (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000 if pricing else 0.0
+    )
+
     return ClassificationResult(
         message_id=email.id,
         category=result["category"],
         confidence=float(result["confidence"]),
         method="llm",
         reasoning=result["reasoning"],
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost_usd,
     )

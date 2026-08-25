@@ -5,18 +5,27 @@ Endpoints:
 - POST /api/subscribe          - slår PÅ automatisk klassificering (skapar webhook-prenumerationen).
 - POST /api/unsubscribe        - slår AV automatisk klassificering (tar bort alla prenumerationer).
 - POST /api/classify-recent    - manuell/backfill-klassificering av senaste mejlen.
+- GET  /api/stats              - statistik (antal, kostnad, kategorier) för dashboarden.
+- GET  /api/dashboard          - enkel HTML-sida: status, statistik, på/av-knapp.
 - (timer) renew_subscriptions  - förnyar aktiva prenumerationer var 6:e timme.
 """
 
 import json
 import logging
 import os
+import time
 
 import azure.functions as func
 
 from src import storage
 from src.classifier import classify
-from src.config import GRAPH_WEBHOOK_CLIENT_STATE, MAILBOX_USER_ID
+from src.config import (
+    AZURE_FREE_EXECUTIONS_PER_MONTH,
+    AZURE_FREE_GB_SECONDS_PER_MONTH,
+    GRAPH_WEBHOOK_CLIENT_STATE,
+    MAILBOX_USER_ID,
+)
+from src.dashboard import DASHBOARD_HTML
 from src.graph_client import GraphClient
 from src.models import EmailMessage
 
@@ -47,6 +56,7 @@ def notifications(req: func.HttpRequest) -> func.HttpResponse:
     if validation_token:
         return func.HttpResponse(validation_token, status_code=200, mimetype="text/plain")
 
+    start = time.perf_counter()
     try:
         payload = req.get_json()
     except ValueError:
@@ -66,6 +76,8 @@ def notifications(req: func.HttpRequest) -> func.HttpResponse:
             _process_message(graph, MAILBOX_USER_ID, message_id)
         except Exception:
             logger.exception("Misslyckades att klassificera meddelande %s", message_id)
+
+    storage.record_invocation("notifications", time.perf_counter() - start)
 
     # Graph kräver bara ett 2xx-svar, ingen body behövs.
     return func.HttpResponse(status_code=202)
@@ -140,6 +152,7 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
         )
     top = int(req.params.get("top", "20"))
 
+    start = time.perf_counter()
     graph = GraphClient()
     messages = graph.list_recent_messages(mailbox, top=top)
 
@@ -151,9 +164,28 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
         results.append(
             {"id": email.id, "subject": email.subject, "category": result.category, "method": result.method}
         )
+    storage.record_invocation("classify_recent", time.perf_counter() - start)
 
     return func.HttpResponse(
         json.dumps({"classified": len(results), "results": results}, ensure_ascii=False),
         status_code=200,
         mimetype="application/json",
     )
+
+
+@app.route(route="stats", methods=["GET"], auth_level=func.AuthLevel.FUNCTION)
+def stats(req: func.HttpRequest) -> func.HttpResponse:
+    data = storage.get_stats()
+    data["subscriptionActive"] = len(storage.list_subscriptions()) > 0
+
+    usage = storage.get_usage()
+    usage["freeExecutionsPerMonth"] = AZURE_FREE_EXECUTIONS_PER_MONTH
+    usage["freeGbSecondsPerMonth"] = AZURE_FREE_GB_SECONDS_PER_MONTH
+    data["azureUsage"] = usage
+
+    return func.HttpResponse(json.dumps(data, ensure_ascii=False), status_code=200, mimetype="application/json")
+
+
+@app.route(route="dashboard", methods=["GET"], auth_level=func.AuthLevel.FUNCTION)
+def dashboard(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(DASHBOARD_HTML, status_code=200, mimetype="text/html")
