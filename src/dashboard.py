@@ -1,6 +1,8 @@
 """Statisk HTML/JS för /api/dashboard. Ren sträng med inline CSS/JS så att
 Function App:en kan servera hela sidan utan någon extra byggprocess eller
-hosting - en URL (med function-nyckeln som ?code=...) räcker."""
+hosting. Inloggning sköts av Easy Auth (Entra ID) - sidan har ingen egen
+auth-logik, den förlitar sig på webbläsarens sessionskaka som Azure sätter
+efter inloggning; samma kaka skickas automatiskt med varje fetch() nedan."""
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="sv">
@@ -31,8 +33,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   button { border: none; border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; font-weight: 600; cursor: pointer; }
   button.toggle-on { background: var(--red); color: white; }
   button.toggle-off { background: var(--green); color: white; }
-  button.refresh { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+  button.refresh, button.manual { background: var(--card); border: 1px solid var(--border); color: var(--text); }
   button:disabled { opacity: .5; cursor: wait; }
+  .manual-row { display: flex; align-items: center; gap: .6rem; }
+  .manual-row input { width: 5rem; padding: .5rem; border: 1px solid var(--border); border-radius: 6px; font-size: .9rem; }
   table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: .6rem .9rem; font-size: .85rem; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; background: #fafbfc; }
@@ -54,6 +58,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <body>
 
 <h1>E-postklassificering &mdash; status</h1>
+<p class="note" id="loggedInAs"></p>
 
 <div id="error"></div>
 
@@ -61,6 +66,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <span id="statusBadge" class="badge off">Laddar...</span>
   <button id="toggleBtn" class="toggle-off" disabled>...</button>
   <button id="refreshBtn" class="refresh">Uppdatera</button>
+  <a href="/.auth/logout" style="margin-left: auto; font-size: .85rem;">Logga ut</a>
 </div>
 
 <div class="grid">
@@ -86,6 +92,18 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <section>
+  <h2 class="section-title">Klassificera manuellt</h2>
+  <div class="card">
+    <div class="manual-row">
+      <label for="manualTop">Antal senaste mejl:</label>
+      <input type="number" id="manualTop" value="20" min="1" max="200">
+      <button id="manualBtn" class="manual">Klassificera nu</button>
+      <span id="manualStatus" class="sub"></span>
+    </div>
+  </div>
+</section>
+
+<section>
   <h2 class="section-title">Fördelning per kategori</h2>
   <div class="grid" id="categoryGrid"></div>
 </section>
@@ -101,14 +119,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </section>
 
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const CODE = params.get("code") || "";
-
-  function apiUrl(path) {
-    if (!CODE) return path;
-    return path + (path.includes("?") ? "&" : "?") + "code=" + encodeURIComponent(CODE);
-  }
-
   function escapeHtml(s) {
     const d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
@@ -122,18 +132,25 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   async function loadStats() {
     document.getElementById("error").innerHTML = "";
     try {
-      const res = await fetch(apiUrl("/api/stats"), { method: "GET" });
+      const res = await fetch("/api/stats", { method: "GET" });
+      if (res.status === 401 || res.status === 403) {
+        window.location.reload();
+        return;
+      }
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       render(data);
     } catch (e) {
       document.getElementById("error").innerHTML =
-        '<div class="error">Kunde inte hämta status: ' + escapeHtml(e.message) +
-        '. Kontrollera att URL:en innehåller rätt ?code=...</div>';
+        '<div class="error">Kunde inte hämta status: ' + escapeHtml(e.message) + "</div>";
     }
   }
 
   function render(data) {
+    document.getElementById("loggedInAs").textContent = data.loggedInAs
+      ? "Inloggad som " + data.loggedInAs
+      : "";
+
     const badge = document.getElementById("statusBadge");
     const toggleBtn = document.getElementById("toggleBtn");
     if (data.subscriptionActive) {
@@ -207,7 +224,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     toggleBtn.textContent = "...";
     try {
       const path = currentlyActive ? "/api/unsubscribe" : "/api/subscribe";
-      const res = await fetch(apiUrl(path), { method: "POST" });
+      const res = await fetch(path, { method: "POST" });
       if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
       await loadStats();
     } catch (e) {
@@ -217,6 +234,28 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
   }
 
+  async function classifyNow() {
+    const btn = document.getElementById("manualBtn");
+    const statusEl = document.getElementById("manualStatus");
+    const top = document.getElementById("manualTop").value || "20";
+    btn.disabled = true;
+    statusEl.textContent = "Klassificerar...";
+    try {
+      const res = await fetch("/api/classify-recent?top=" + encodeURIComponent(top), { method: "POST" });
+      if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+      const data = await res.json();
+      statusEl.textContent = "Klart: " + data.classified + " mejl klassificerade.";
+      await loadStats();
+    } catch (e) {
+      statusEl.textContent = "";
+      document.getElementById("error").innerHTML =
+        '<div class="error">Kunde inte klassificera: ' + escapeHtml(e.message) + "</div>";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById("manualBtn").addEventListener("click", classifyNow);
   document.getElementById("refreshBtn").addEventListener("click", loadStats);
   loadStats();
 </script>

@@ -96,41 +96,70 @@ Varje push till `main` bygger och deployar automatiskt. Vill du deploya om
 utan att pusha, kör workflowen manuellt via **Actions → Build and deploy
 Python project to Azure Function App - emailclassification → Run workflow**.
 
-### 4. Slå på/av automatisk klassificering
+### 4. Aktivera inloggning (Easy Auth)
+
+Dashboarden och API:et (`subscribe`, `unsubscribe`, `classify-recent`,
+`stats`) kräver att du är inloggad med ditt `movedigital.se`-konto - ingen
+function-nyckel behövs längre för dem. Det sköts av Azure App Service
+Authentication ("Easy Auth"), inbyggt i plattformen, ingen egen
+inloggningskod. Om er organisation kräver MFA vid inloggning får ni det på
+köpet här också.
+
+1. Gå till Function App:en `emailclassification` i Azure Portal.
+2. Vänstermenyn → **Settings → Authentication**.
+3. Klicka **Add identity provider**.
+4. Välj **Microsoft** som identity provider.
+5. Under **App registration**, låt **Create new app registration** vara
+   ikryssat (Azure skapar och kopplar in den automatiskt - du behöver inte
+   göra något manuellt här, till skillnad från Graph-appregistreringen i
+   steg 1).
+   - **Supported account types**: välj **Current tenant - Single
+     organization**. Det gör att bara `movedigital.se`-konton överhuvudtaget
+     kan försöka logga in.
+6. Under **Restrict access**, välj **Allow unauthenticated requests** (inte
+   "Require authentication" - vår egen kod hanterar inloggningskontrollen
+   per endpoint, och `/api/notifications` måste förbli helt öppen för
+   Microsoft Graph).
+7. Klicka **Add**.
+
+Det räcker för själva inloggningen. Vem som helst på `movedigital.se`
+*kan* då logga in, men bara den e-postadress som står i miljövariabeln
+`ALLOWED_USER_EMAIL` (satt till `petter.edlund@movedigital.se` som
+default) släpps igenom av appens egen kod - alla andra får ett tydligt
+403-felmeddelande. Vill du lägga till fler tillåtna personer senare, se
+[Justera klassificeringen](#justera-klassificeringen)-avsnittets motsvarighet
+för åtkomst: ändra `src/auth.py` till att jämföra mot en lista istället för
+en enda adress.
+
+### 5. Slå på/av automatisk klassificering
 
 Den automatiska klassificeringen (nya mejl klassificeras direkt när de
-kommer in) är **avstängd som standard**. Enklast sätt att styra den är via
-[dashboarden](#dashboard) - en på/av-knapp i webbläsaren. Alternativt via
-samma **Code + Test → Test/Run**-panel i Azure Portal som används för
-`classify_recent` (se avsnittet om att verifiera att allt fungerar) - välj
-bara funktionen `subscribe` eller `unsubscribe` istället, inga
-query-parametrar behövs.
+kommer in) är **avstängd som standard**. Styr den via
+[dashboarden](#dashboard) - en på/av-knapp i webbläsaren, efter att du
+loggat in enligt steg 4.
 
-- **Slå på**: kör funktionen **`subscribe`** (eller knappen i dashboarden).
-  Det skapar en Graph-prenumeration och sparar den i
+- **Slå på**: knappen i dashboarden (eller `POST /api/subscribe` från en
+  inloggad session). Det skapar en Graph-prenumeration och sparar den i
   `Subscriptions`-tabellen. Efter det klassificeras nya mejl automatiskt,
   vilket innebär att Claude-credits förbrukas löpande. Timer-funktionen
   (`renew_subscriptions`) håller prenumerationen vid liv automatiskt var 6:e
   timme tills du stänger av den.
-- **Slå av**: kör funktionen **`unsubscribe`** (eller knappen i
-  dashboarden). Den tar bort alla aktiva prenumerationer, både hos
-  Microsoft Graph och i `Subscriptions`-tabellen - inga fler mejl
-  klassificeras automatiskt förrän du slår på igen. Manuell körning av
-  `classify_recent` fungerar oavsett på/av-läge.
+- **Slå av**: samma knapp igen (eller `POST /api/unsubscribe`). Den tar
+  bort alla aktiva prenumerationer, både hos Microsoft Graph och i
+  `Subscriptions`-tabellen - inga fler mejl klassificeras automatiskt
+  förrän du slår på igen. Manuell klassificering (nästa steg) fungerar
+  oavsett på/av-läge.
 
-(Vill du hellre göra det via HTTP-anrop, t.ex. med curl: samma två
-endpoints finns på `POST /api/subscribe?code=<function-key>` respektive
-`POST /api/unsubscribe?code=<function-key>`, med function-nyckeln du hittar
-under **App keys**.)
+**Obs:** Azure Portals **Code + Test → Test/Run**-panel går inte via en
+inloggad webbläsarsession, så den fungerar inte längre för dessa skyddade
+funktioner efter att Easy Auth är aktiverat - använd dashboarden istället.
+`/api/notifications` (som Graph anropar) påverkas inte av det här alls.
 
-### 5. Backfill / manuell klassificering
+### 6. Backfill / manuell klassificering
 
 Innan webhooken hunnit trigga på nya mejl, eller för att klassificera
-befintliga mejl i inkorgen:
-
-```
-POST https://emailclassification.azurewebsites.net/api/classify-recent?code=<function-key>&top=50
-```
+befintliga mejl i inkorgen: knappen **"Klassificera nu"** i dashboarden,
+eller `POST /api/classify-recent?top=50` från en inloggad session.
 
 ## Läsa resultat-tabellen
 
@@ -160,13 +189,14 @@ klassificeringarna.
 Öppna den på:
 
 ```
-https://emailclassification.azurewebsites.net/api/dashboard?code=<function-key>
+https://emailclassification.azurewebsites.net/api/dashboard
 ```
 
-Function-nyckeln hittar du under Function App:ens **App keys**. Bokmärk
-länken med nyckeln inkluderad - sidan läser den ur webbläsarens adressfält
-och återanvänder den automatiskt för alla anrop den gör (statistik,
-på/av-knappen).
+Är du inte redan inloggad skickas du automatiskt till Microsofts
+inloggningssida (kräver att [Easy Auth är aktiverat](#4-aktivera-inloggning-easy-auth)
+och att du loggar in med `petter.edlund@movedigital.se`). Bokmärk gärna
+länken - webbläsarens inloggningssession håller dig inloggad mellan
+besöken tills du klickar **Logga ut** eller sessionen går ut.
 
 ## Utöka till en delad brevlåda
 
@@ -212,14 +242,24 @@ pytest -v
 
 ## Säkerhet
 
-- Alla HTTP-endpoints utom `/api/notifications` kräver en function key
-  (`auth_level=FUNCTION`).
-- `/api/notifications` är medvetet öppen utan nyckel-krav
-  (`auth_level=ANONYMOUS`) – Microsoft Graph kan inte skicka med en
-  function-nyckel i sina anrop, så den skulle annars aldrig komma förbi
-  valideringen när prenumerationen skapas. Skyddet sitter istället i att
-  endpointen avvisar alla notiser vars `clientState` inte matchar den hemliga
-  `GRAPH_WEBHOOK_CLIENT_STATE`-strängen, så förfalskade anrop ignoreras ändå.
+- `/api/dashboard`, `/api/stats`, `/api/subscribe`, `/api/unsubscribe` och
+  `/api/classify-recent` kräver inloggning via Azure Easy Auth (Entra ID),
+  begränsat till tenanten `movedigital.se`. Utöver det jämför appens egen
+  kod (`src/auth.py`) den inloggade användarens e-post mot
+  `ALLOWED_USER_EMAIL` innan något körs - fel person får ett tydligt
+  403-svar även om de kan logga in på tenanten. Ingen egen kod hanterar
+  lösenord, tokens eller sessioner - det sköter Azure-plattformen.
+- `/api/notifications` är medvetet öppen utan inloggningskrav
+  (`auth_level=ANONYMOUS`, inget `require_login`-anrop) – Microsoft Graph
+  kan varken logga in interaktivt eller skicka med en function-nyckel, så
+  den skulle annars aldrig komma förbi valideringen när prenumerationen
+  skapas. Skyddet sitter istället i att endpointen avvisar alla notiser vars
+  `clientState` inte matchar den hemliga `GRAPH_WEBHOOK_CLIENT_STATE`-strängen,
+  så förfalskade anrop ignoreras ändå.
 - Motorn har bara `Mail.Read`-behörighet mot Graph – den kan inte ändra,
   flytta eller ta bort något i brevlådan, bara läsa och skriva resultatet
   till tabellen.
+- Innan Easy Auth är aktiverat (steg 4 i Komma igång) svarar de skyddade
+  endpointsen 401 för alla, inklusive dig - appen nekar åtkomst som
+  standard (fail closed) istället för att av misstag släppa in vem som
+  helst om inloggningen inte är klar.

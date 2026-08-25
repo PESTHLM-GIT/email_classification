@@ -21,6 +21,11 @@ MAILBOX_USER_ID = os.environ.get("MAILBOX_USER_ID", "")
 # (clientState) så vi kan avvisa förfalskade anrop mot /api/notifications.
 GRAPH_WEBHOOK_CLIENT_STATE = os.environ.get("GRAPH_WEBHOOK_CLIENT_STATE", "")
 
+# Enda e-postadressen som får logga in på dashboard/stats/subscribe/unsubscribe
+# /classify-recent efter Entra ID-inloggning (Easy Auth). Skiftlägesokänslig
+# jämförelse. /api/notifications är undantaget - Microsoft Graph loggar aldrig in.
+ALLOWED_USER_EMAIL = os.environ.get("ALLOWED_USER_EMAIL", "petter.edlund@movedigital.se")
+
 # USD per 1 miljon tokens, används enbart för att uppskatta kostnaden som
 # visas i dashboarden - motsvarar Anthropics officiella listpriser.
 CLAUDE_PRICING_PER_MILLION_TOKENS = {

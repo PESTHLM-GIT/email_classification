@@ -18,6 +18,7 @@ import time
 import azure.functions as func
 
 from src import storage
+from src.auth import require_login
 from src.classifier import classify
 from src.config import (
     AZURE_FREE_EXECUTIONS_PER_MONTH,
@@ -83,8 +84,12 @@ def notifications(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(status_code=202)
 
 
-@app.route(route="subscribe", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="subscribe", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def subscribe(req: func.HttpRequest) -> func.HttpResponse:
+    denied = require_login(req)
+    if denied:
+        return denied
+
     mailbox = req.params.get("mailbox", MAILBOX_USER_ID)
     if not mailbox:
         return func.HttpResponse(
@@ -104,11 +109,15 @@ def subscribe(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(json.dumps(subscription), status_code=201, mimetype="application/json")
 
 
-@app.route(route="unsubscribe", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="unsubscribe", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def unsubscribe(req: func.HttpRequest) -> func.HttpResponse:
     """Stänger av den automatiska klassificeringen: tar bort alla kända
     Graph-prenumerationer så inga fler webhook-notiser (och därmed inga fler
     Claude-anrop) kommer in. Rör aldrig själva brevlådan."""
+    denied = require_login(req)
+    if denied:
+        return denied
+
     graph = GraphClient()
     subscriptions = storage.list_subscriptions()
 
@@ -141,9 +150,13 @@ def renew_subscriptions(timer: func.TimerRequest) -> None:
             logger.exception("Kunde inte förnya prenumeration %s", sub["RowKey"])
 
 
-@app.route(route="classify-recent", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="classify-recent", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
     """Manuell/backfill-klassificering, användbar innan webhooken är uppsatt."""
+    denied = require_login(req)
+    if denied:
+        return denied
+
     mailbox = req.params.get("mailbox", MAILBOX_USER_ID)
     if not mailbox:
         return func.HttpResponse(
@@ -173,10 +186,15 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
-@app.route(route="stats", methods=["GET"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="stats", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def stats(req: func.HttpRequest) -> func.HttpResponse:
+    denied = require_login(req)
+    if denied:
+        return denied
+
     data = storage.get_stats()
     data["subscriptionActive"] = len(storage.list_subscriptions()) > 0
+    data["loggedInAs"] = req.headers.get("X-MS-CLIENT-PRINCIPAL-NAME", "")
 
     usage = storage.get_usage()
     usage["freeExecutionsPerMonth"] = AZURE_FREE_EXECUTIONS_PER_MONTH
@@ -186,6 +204,9 @@ def stats(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(json.dumps(data, ensure_ascii=False), status_code=200, mimetype="application/json")
 
 
-@app.route(route="dashboard", methods=["GET"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="dashboard", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def dashboard(req: func.HttpRequest) -> func.HttpResponse:
+    denied = require_login(req, redirect_if_missing=True)
+    if denied:
+        return denied
     return func.HttpResponse(DASHBOARD_HTML, status_code=200, mimetype="text/html")

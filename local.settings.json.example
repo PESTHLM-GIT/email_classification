@@ -11,6 +11,7 @@
     "MAILBOX_USER_ID": "petter.edlund@movedigital.se",
     "GRAPH_WEBHOOK_CLIENT_STATE": "<slumpad-hemlig-strang-du-hittar-pa>",
     "FUNCTION_APP_BASE_URL": "https://<ditt-function-app-namn>.azurewebsites.net",
-    "RULE_SHORT_CIRCUIT_THRESHOLD": "0.85"
+    "RULE_SHORT_CIRCUIT_THRESHOLD": "0.85",
+    "ALLOWED_USER_EMAIL": "petter.edlund@movedigital.se"
   }
 }
