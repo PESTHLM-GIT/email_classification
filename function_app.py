@@ -39,7 +39,7 @@ def _process_message(graph: GraphClient, mailbox: str, message_id: str) -> Email
     return email
 
 
-@app.route(route="notifications", methods=["GET", "POST"], auth_level=func.AuthLevel.FUNCTION)
+@app.route(route="notifications", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def notifications(req: func.HttpRequest) -> func.HttpResponse:
     # Microsoft Graph validerar endpointen genom att skicka en validationToken
     # som måste ekas tillbaka som text/plain inom 10 sekunder.

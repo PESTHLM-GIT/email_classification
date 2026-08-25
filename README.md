@@ -185,9 +185,14 @@ pytest -v
 
 ## Säkerhet
 
-- HTTP-endpoints kräver en function key (`auth_level=FUNCTION`).
-- `/api/notifications` avvisar notiser vars `clientState` inte matchar
-  `GRAPH_WEBHOOK_CLIENT_STATE`, så förfalskade webhook-anrop ignoreras.
+- Alla HTTP-endpoints utom `/api/notifications` kräver en function key
+  (`auth_level=FUNCTION`).
+- `/api/notifications` är medvetet öppen utan nyckel-krav
+  (`auth_level=ANONYMOUS`) – Microsoft Graph kan inte skicka med en
+  function-nyckel i sina anrop, så den skulle annars aldrig komma förbi
+  valideringen när prenumerationen skapas. Skyddet sitter istället i att
+  endpointen avvisar alla notiser vars `clientState` inte matchar den hemliga
+  `GRAPH_WEBHOOK_CLIENT_STATE`-strängen, så förfalskade anrop ignoreras ändå.
 - Motorn har bara `Mail.Read`-behörighet mot Graph – den kan inte ändra,
   flytta eller ta bort något i brevlådan, bara läsa och skriva resultatet
   till tabellen.
