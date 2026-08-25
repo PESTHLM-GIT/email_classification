@@ -201,9 +201,13 @@ klassificeringarna - fallande på mottagningstid, som inkorgen. Kolumnen
 punkten (för att undvika förväxling), och tider visas i din webbläsares
 lokala tidszon (datat lagras i UTC i tabellen, men konverteras för visning).
 Klicka på en rad för att se övrig data som också finns i
-`Classifications`-tabellen:
-avsändare, motivering från Claude, token-antal och exakt
-klassificeringstidpunkt.
+`Classifications`-tabellen: avsändare, motivering från Claude, token-antal
+och exakt klassificeringstidpunkt - samt en dropdown för att **rätta
+kategorin manuellt**. En rättelse skriver tillbaka direkt till raden i
+Table Storage (via `POST /api/classifications/correct?id=...&category=...`)
+och behåller den ursprungliga bedömningen och vem som rättade den, så
+historiken inte går förlorad. Rättade rader får en liten ✎-markering bredvid
+kategorin.
 
 Öppna den på:
 

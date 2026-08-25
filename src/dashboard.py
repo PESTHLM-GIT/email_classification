@@ -1,10 +1,17 @@
-"""Statisk HTML/JS för /api/dashboard. Ren sträng med inline CSS/JS så att
-Function App:en kan servera hela sidan utan någon extra byggprocess eller
-hosting. Inloggning sköts av Easy Auth (Entra ID) - sidan har ingen egen
-auth-logik, den förlitar sig på webbläsarens sessionskaka som Azure sätter
-efter inloggning; samma kaka skickas automatiskt med varje fetch() nedan."""
+"""HTML/JS för /api/dashboard. Ren sträng med inline CSS/JS så att Function
+App:en kan servera hela sidan utan någon extra byggprocess eller hosting.
+Inloggning sköts av Easy Auth (Entra ID) - sidan har ingen egen auth-logik,
+den förlitar sig på webbläsarens sessionskaka som Azure sätter efter
+inloggning; samma kaka skickas automatiskt med varje fetch() nedan.
 
-DASHBOARD_HTML = """<!DOCTYPE html>
+render_dashboard() injicerar den giltiga kategori-listan (från
+config.CATEGORIES) i sidan, så JS-dropdownen för att rätta en
+klassificering aldrig kan hamna i otakt med vad backend faktiskt accepterar.
+"""
+
+import json as _json
+
+_DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <html lang="sv">
 <head>
 <meta charset="utf-8">
@@ -46,6 +53,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .detail-grid { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; font-size: .85rem; }
   .detail-grid dt { color: var(--muted); font-weight: 600; }
   .detail-grid dd { margin: 0; }
+  .corrected-mark { font-size: .8rem; margin-left: .4rem; cursor: help; }
+  .correction-row { display: flex; align-items: center; gap: .6rem; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .correction-row select { padding: .45rem; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; }
   table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: .6rem .9rem; font-size: .85rem; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; background: #fafbfc; }
@@ -142,6 +152,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </section>
 
 <script>
+  const CATEGORIES = __CATEGORIES_JSON__;
+
   function escapeHtml(s) {
     const d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
@@ -241,9 +253,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const tr = document.createElement("tr");
       tr.className = "data-row";
       const catClass = "cat-" + String(row.category || "").replace(/\\s/g, "");
+      const correctedMark = row.correctedManually
+        ? '<span class="corrected-mark" title="Manuellt rättad från ' + escapeHtml(row.originalCategory) + '">&#9998;</span>'
+        : "";
       tr.innerHTML =
         "<td>" + escapeHtml(row.subject) + "</td>" +
-        '<td><span class="cat-pill ' + catClass + '">' + escapeHtml(row.category) + "</span></td>" +
+        '<td><span class="cat-pill ' + catClass + '">' + escapeHtml(row.category) + "</span>" + correctedMark + "</td>" +
         '<td class="method-' + escapeHtml(row.method) + '">' + escapeHtml(row.method) + "</td>" +
         "<td>" + fmtUsd(row.costUsd) + "</td>" +
         "<td>" + escapeHtml(fmtLocalTime(row.receivedAt)) + "</td>";
@@ -263,10 +278,56 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         ["Tokens (in/ut)", (row.inputTokens || 0) + " / " + (row.outputTokens || 0)],
         ["Kostnad", fmtUsd(row.costUsd)],
       ];
+      if (row.correctedManually) {
+        fields.push(["Ursprunglig bedömning", row.originalCategory]);
+        fields.push(["Rättad av", row.correctedBy]);
+      }
       detailTd.innerHTML =
         '<dl class="detail-grid">' +
         fields.map(([label, value]) => "<dt>" + escapeHtml(label) + "</dt><dd>" + escapeHtml(value) + "</dd>").join("") +
         "</dl>";
+
+      const correctionRow = document.createElement("div");
+      correctionRow.className = "correction-row";
+      const select = document.createElement("select");
+      CATEGORIES.forEach((cat) => {
+        const opt = document.createElement("option");
+        opt.value = cat;
+        opt.textContent = cat;
+        if (cat === row.category) opt.selected = true;
+        select.appendChild(opt);
+      });
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "manual";
+      saveBtn.textContent = "Spara rättelse";
+      const correctionStatus = document.createElement("span");
+      correctionStatus.className = "sub";
+
+      saveBtn.addEventListener("click", async (evt) => {
+        evt.stopPropagation();
+        saveBtn.disabled = true;
+        correctionStatus.textContent = "Sparar...";
+        try {
+          const params = new URLSearchParams({ id: row.id, mailbox: row.mailbox, category: select.value });
+          const res = await fetch("/api/classifications/correct?" + params.toString(), { method: "POST" });
+          if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+          correctionStatus.textContent = "Sparat.";
+          await loadStats();
+        } catch (e) {
+          correctionStatus.textContent = "";
+          document.getElementById("error").innerHTML =
+            '<div class="error">Kunde inte spara rättelsen: ' + escapeHtml(e.message) + "</div>";
+          saveBtn.disabled = false;
+        }
+      });
+      // Klick i formuläret ska inte trigga radens öppna/stäng-toggle nedan.
+      correctionRow.addEventListener("click", (evt) => evt.stopPropagation());
+
+      correctionRow.appendChild(document.createTextNode("Rätta kategori: "));
+      correctionRow.appendChild(select);
+      correctionRow.appendChild(saveBtn);
+      correctionRow.appendChild(correctionStatus);
+      detailTd.appendChild(correctionRow);
       detailTr.appendChild(detailTd);
 
       tr.addEventListener("click", () => {
@@ -362,3 +423,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </body>
 </html>
 """
+
+
+def render_dashboard(categories: list) -> str:
+    return _DASHBOARD_TEMPLATE.replace("__CATEGORIES_JSON__", _json.dumps(categories))

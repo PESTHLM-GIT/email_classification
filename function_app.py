@@ -1,13 +1,14 @@
 """Azure Functions-app (Python v2-modellen).
 
 Endpoints:
-- POST/GET /api/notifications  - tar emot Microsoft Graph webhook-notiser om nya mejl.
-- POST /api/subscribe          - slår PÅ automatisk klassificering (skapar webhook-prenumerationen).
-- POST /api/unsubscribe        - slår AV automatisk klassificering (tar bort alla prenumerationer).
-- POST /api/classify-recent    - manuell/backfill-klassificering av senaste mejlen.
-- GET  /api/stats              - statistik (antal, kostnad, kategorier) för dashboarden.
-- GET  /api/dashboard          - enkel HTML-sida: status, statistik, på/av-knapp.
-- (timer) renew_subscriptions  - förnyar aktiva prenumerationer var 6:e timme.
+- POST/GET /api/notifications      - tar emot Microsoft Graph webhook-notiser om nya mejl.
+- POST /api/subscribe              - slår PÅ automatisk klassificering (skapar webhook-prenumerationen).
+- POST /api/unsubscribe            - slår AV automatisk klassificering (tar bort alla prenumerationer).
+- POST /api/classify-recent        - manuell/backfill-klassificering av senaste mejlen.
+- POST /api/classifications/correct - rättar en enskild klassificering manuellt.
+- GET  /api/stats                  - statistik (antal, kostnad, kategorier) för dashboarden.
+- GET  /api/dashboard              - enkel HTML-sida: status, statistik, på/av-knapp.
+- (timer) renew_subscriptions      - förnyar aktiva prenumerationer var 6:e timme.
 """
 
 import json
@@ -16,6 +17,7 @@ import os
 import time
 
 import azure.functions as func
+from azure.core.exceptions import ResourceNotFoundError
 
 from src import storage
 from src.auth import require_login
@@ -23,10 +25,11 @@ from src.classifier import classify
 from src.config import (
     AZURE_FREE_EXECUTIONS_PER_MONTH,
     AZURE_FREE_GB_SECONDS_PER_MONTH,
+    CATEGORIES,
     GRAPH_WEBHOOK_CLIENT_STATE,
     MAILBOX_USER_ID,
 )
-from src.dashboard import DASHBOARD_HTML
+from src.dashboard import render_dashboard
 from src.graph_client import GraphClient
 from src.models import EmailMessage
 
@@ -188,6 +191,33 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
+@app.route(route="classifications/correct", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
+def correct_classification(req: func.HttpRequest) -> func.HttpResponse:
+    """Rättar en enskild klassificering manuellt (dashboardens dropdown i
+    den utfällda radvyn). Behåller den ursprungliga bedömningen och vem som
+    rättade den, istället för att bara skriva över den tyst."""
+    denied = require_login(req)
+    if denied:
+        return denied
+
+    message_id = req.params.get("id")
+    mailbox = req.params.get("mailbox", MAILBOX_USER_ID)
+    new_category = req.params.get("category")
+
+    if not message_id or not new_category:
+        return func.HttpResponse("Query-parametrarna 'id' och 'category' krävs", status_code=400)
+    if new_category not in CATEGORIES:
+        return func.HttpResponse(f"Ogiltig kategori. Måste vara en av: {', '.join(CATEGORIES)}", status_code=400)
+
+    corrected_by = req.headers.get("X-MS-CLIENT-PRINCIPAL-NAME", "okänd")
+    try:
+        storage.update_category(mailbox, message_id, new_category, corrected_by)
+    except ResourceNotFoundError:
+        return func.HttpResponse("Hittade ingen klassificering med det id:t", status_code=404)
+
+    return func.HttpResponse(status_code=204)
+
+
 @app.route(route="stats", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def stats(req: func.HttpRequest) -> func.HttpResponse:
     denied = require_login(req)
@@ -211,4 +241,4 @@ def dashboard(req: func.HttpRequest) -> func.HttpResponse:
     denied = require_login(req, redirect_if_missing=True)
     if denied:
         return denied
-    return func.HttpResponse(DASHBOARD_HTML, status_code=200, mimetype="text/html")
+    return func.HttpResponse(render_dashboard(CATEGORIES), status_code=200, mimetype="text/html")

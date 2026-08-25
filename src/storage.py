@@ -62,6 +62,26 @@ def save_subscription(subscription_id: str, mailbox: str, resource: str, expirat
     )
 
 
+def update_category(mailbox: str, message_id: str, new_category: str, corrected_by: str) -> None:
+    """Låter en inloggad användare rätta en felaktig klassificering direkt i
+    dashboarden. Sparar den ursprungliga bedömningen (regel/Claude) i
+    originalCategory första gången detta mejl rättas, så historiken bevaras
+    även om det rättas flera gånger. Höjer ResourceNotFoundError om mejlet
+    inte finns i tabellen."""
+    table = _get_or_create_table(_table_service(), CLASSIFICATIONS_TABLE)
+    entity = table.get_entity(partition_key=mailbox, row_key=message_id)
+
+    if not entity.get("correctedManually"):
+        entity["originalCategory"] = entity.get("category", "")
+
+    entity["category"] = new_category
+    entity["correctedManually"] = True
+    entity["correctedBy"] = corrected_by
+    entity["correctedAt"] = datetime.now(timezone.utc).isoformat()
+
+    table.upsert_entity(entity)
+
+
 def list_subscriptions() -> List[Dict[str, Any]]:
     table = _get_or_create_table(_table_service(), SUBSCRIPTIONS_TABLE)
     return list(table.query_entities("PartitionKey eq 'subscription'"))
@@ -107,6 +127,7 @@ def get_stats(recent_limit: int = 20) -> Dict[str, Any]:
         "recent": [
             {
                 "id": e.get("RowKey", ""),
+                "mailbox": e.get("PartitionKey", ""),
                 "subject": e.get("subject", ""),
                 "senderName": e.get("senderName", ""),
                 "senderAddress": e.get("senderAddress", ""),
@@ -119,6 +140,9 @@ def get_stats(recent_limit: int = 20) -> Dict[str, Any]:
                 "outputTokens": e.get("outputTokens", 0),
                 "costUsd": e.get("costUsd", 0),
                 "classifiedAt": e.get("classifiedAt", ""),
+                "correctedManually": bool(e.get("correctedManually", False)),
+                "originalCategory": e.get("originalCategory", ""),
+                "correctedBy": e.get("correctedBy", ""),
             }
             for e in recent
         ],
