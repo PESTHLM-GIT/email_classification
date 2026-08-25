@@ -78,6 +78,10 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 
 <h1>E-postklassificering &mdash; status</h1>
 <p class="note" id="loggedInAs"></p>
+<p class="note">Ingen utloggningsknapp här - Azures inloggning loggar tyvärr ut hela ditt
+  Microsoft 365 (Outlook, Teams m.m.), inte bara den här sidan. Sessionen går ut av
+  sig själv efter ett tag. Vill du logga ut just den här sidan specifikt utan att
+  röra resten: rensa cookies för denna webbplats i webbläsaren.</p>
 
 <div id="error"></div>
 
@@ -85,7 +89,6 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
   <span id="statusBadge" class="badge off">Laddar...</span>
   <button id="toggleBtn" class="toggle-off" disabled>...</button>
   <button id="refreshBtn" class="refresh">Uppdatera</button>
-  <a href="/.auth/logout" style="margin-left: auto; font-size: .85rem;">Logga ut</a>
 </div>
 
 <div class="grid">

@@ -218,8 +218,16 @@ https://emailclassification-cdcwb3a9f6hkaxar.swedencentral-01.azurewebsites.net/
 Är du inte redan inloggad skickas du automatiskt till Microsofts
 inloggningssida (kräver att [Easy Auth är aktiverat](#4-aktivera-inloggning-easy-auth)
 och att du loggar in med `petter.edlund@movedigital.se`). Bokmärk gärna
-länken - webbläsarens inloggningssession håller dig inloggad mellan
-besöken tills du klickar **Logga ut** eller sessionen går ut.
+länken - webbläsarens inloggningssession håller dig inloggad mellan besöken
+tills sessionen går ut av sig själv.
+
+Dashboarden har **ingen** utloggningsknapp: Azures `/.auth/logout`-endpoint
+loggar tyvärr inte bara ut dig från den här appen utan gör en global
+utloggning från hela Microsoft 365 i webbläsaren (Outlook, Teams m.m.) -
+det är dokumenterat plattformsbeteende, inte något som går att stänga av
+via en parameter. Vill du logga ut just den här sidan specifikt: rensa
+cookies för webbplatsen i webbläsaren istället för att anropa
+`/.auth/logout`.
 
 Sidan uppdaterar sig själv automatiskt var 20:e sekund medan den är öppen
 (pausar om fliken inte är synlig) - du behöver inte klicka **Uppdatera**
