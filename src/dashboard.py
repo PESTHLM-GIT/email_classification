@@ -418,7 +418,34 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 
   document.getElementById("manualBtn").addEventListener("click", classifyNow);
   document.getElementById("refreshBtn").addEventListener("click", loadStats);
+
+  // Sidan pratar inte direkt med webhooken - istället uppdaterar den sig
+  // själv med jämna mellanrum medan den är öppen, så man aldrig behöver
+  // klicka "Uppdatera" manuellt för att se nya automatiska klassificeringar.
+  // Pausar när fliken inte är synlig för att inte snurra i onödan.
+  const POLL_INTERVAL_MS = 20000;
+  let pollTimer = null;
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(loadStats, POLL_INTERVAL_MS);
+  }
+  function stopPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopPolling();
+    } else {
+      loadStats();
+      startPolling();
+    }
+  });
+
   loadStats();
+  startPolling();
 </script>
 </body>
 </html>

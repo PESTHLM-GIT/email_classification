@@ -221,6 +221,13 @@ och att du loggar in med `petter.edlund@movedigital.se`). Bokmärk gärna
 länken - webbläsarens inloggningssession håller dig inloggad mellan
 besöken tills du klickar **Logga ut** eller sessionen går ut.
 
+Sidan uppdaterar sig själv automatiskt var 20:e sekund medan den är öppen
+(pausar om fliken inte är synlig) - du behöver inte klicka **Uppdatera**
+för att se nya klassificeringar som webhooken gjort under tiden. Riktig
+push direkt vid varje webhook-anrop skulle kräva extra Azure-infrastruktur
+(t.ex. Azure SignalR/Web PubSub) - bedömdes inte vara värt det för den här
+volymen.
+
 ## Utöka till en delad brevlåda
 
 Byt bara värdet på `MAILBOX_USER_ID` (eller skicka `?mailbox=...` till
