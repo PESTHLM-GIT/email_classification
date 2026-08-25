@@ -65,10 +65,14 @@ via Exchange Online PowerShell.
 ### 2. Function App
 
 - Skapa en **Function App** i Azure Portal: Runtime stack **Python 3.11**,
-  Consumption-plan (räcker gott för denna volym). En Storage Account skapas
-  automatiskt – det är den som huserar resultat-tabellen.
+  Flex Consumption-plan (räcker gott för denna volym). En Storage Account
+  skapas automatiskt – det är den som huserar resultat-tabellen.
   - Function App-namnet i det här projektet är **`emailclassification`**,
-    dvs. bas-URL:en är `https://emailclassification.azurewebsites.net`.
+    men bas-URL:en är **inte** det förutsägbara `emailclassification.azurewebsites.net`
+    - Flex Consumption ger istället en unik, regional URL. Hitta din under
+    **Overview → Browse**-knappen eller fältet **Default domain**. I det
+    här projektet är den
+    `https://emailclassification-cdcwb3a9f6hkaxar.swedencentral-01.azurewebsites.net`.
 - Under **Settings → Environment variables** (Application settings), sätt
   samma nycklar som i [`local.settings.json.example`](local.settings.json.example):
 
@@ -79,7 +83,7 @@ via Exchange Online PowerShell.
   | `GRAPH_TENANT_ID` / `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET` | Från steg 1 |
   | `MAILBOX_USER_ID` | `petter.edlund@movedigital.se` |
   | `GRAPH_WEBHOOK_CLIENT_STATE` | En slumpad hemlig sträng du hittar på |
-  | `FUNCTION_APP_BASE_URL` | `https://emailclassification.azurewebsites.net` |
+  | `FUNCTION_APP_BASE_URL` | `https://emailclassification-cdcwb3a9f6hkaxar.swedencentral-01.azurewebsites.net` |
 
   Överväg Key Vault-referenser för hemligheterna i produktion.
 
@@ -189,7 +193,7 @@ klassificeringarna.
 Öppna den på:
 
 ```
-https://emailclassification.azurewebsites.net/api/dashboard
+https://emailclassification-cdcwb3a9f6hkaxar.swedencentral-01.azurewebsites.net/api/dashboard
 ```
 
 Är du inte redan inloggad skickas du automatiskt till Microsofts

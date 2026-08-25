@@ -4,7 +4,10 @@ from src.auth import require_login
 from src.config import ALLOWED_USER_EMAIL
 
 
-def make_request(principal_name=None, url="https://emailclassification.azurewebsites.net/api/dashboard"):
+def make_request(
+    principal_name=None,
+    url="https://emailclassification-cdcwb3a9f6hkaxar.swedencentral-01.azurewebsites.net/api/dashboard",
+):
     return SimpleNamespace(headers={"X-MS-CLIENT-PRINCIPAL-NAME": principal_name} if principal_name else {}, url=url)
 
 
