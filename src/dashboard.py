@@ -44,7 +44,9 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
   button:disabled { opacity: .5; cursor: wait; }
   .manual-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
   .manual-row input[type="number"] { width: 5rem; padding: .5rem; border: 1px solid var(--border); border-radius: 6px; font-size: .9rem; }
-  .manual-row input[type="datetime-local"] { padding: .45rem; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; }
+  .manual-row input[type="date"], .manual-row input[type="text"] { padding: .45rem; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; }
+  .manual-row input[type="text"] { width: 4.5rem; font-variant-numeric: tabular-nums; }
+  .manual-row input:invalid { border-color: var(--red); }
   .mode-row { display: flex; gap: 1.2rem; margin-bottom: .8rem; font-size: .9rem; }
   .mode-row label { display: flex; align-items: center; gap: .35rem; cursor: pointer; }
   tr.data-row { cursor: pointer; }
@@ -125,11 +127,15 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
       <input type="number" id="manualTop" value="20" min="1" max="200">
     </div>
     <div class="manual-row" id="manualRangeRow" style="display: none;">
-      <label for="manualSince">Från:</label>
-      <input type="datetime-local" id="manualSince">
-      <label for="manualUntil">Till:</label>
-      <input type="datetime-local" id="manualUntil">
-      <span class="sub">(max 200 mejl inom intervallet, mottagningstid)</span>
+      <label for="manualSinceDate">Från:</label>
+      <input type="date" id="manualSinceDate">
+      <input type="text" id="manualSinceTime" placeholder="TT:MM" value="00:00" size="5"
+             pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" title="24-timmarsformat, t.ex. 14:30">
+      <label for="manualUntilDate">Till:</label>
+      <input type="date" id="manualUntilDate">
+      <input type="text" id="manualUntilTime" placeholder="TT:MM" value="23:59" size="5"
+             pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" title="24-timmarsformat, t.ex. 14:30">
+      <span class="sub">(24-timmarsformat, din lokala tid. Max 200 mejl inom intervallet, mottagningstid)</span>
     </div>
     <div class="manual-row">
       <button id="manualBtn" class="manual">Klassificera nu</button>
@@ -361,12 +367,19 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     }
   }
 
-  // datetime-local ger lokal tid utan tidszon (t.ex. "2026-08-20T14:30") -
-  // Graph vill ha UTC med Z-suffix, så vi tolkar värdet som lokal tid och
-  // konverterar via Date, som webbläsaren redan känner till användarens tidszon för.
-  function localInputToIsoUtc(value) {
-    if (!value) return null;
-    const d = new Date(value);
+  // Datum och klockslag hämtas från separata fält (istället för en inbyggd
+  // datetime-local-widget) eftersom den widgeten visar AM/PM eller 24h
+  // beroende på webbläsarens/OS:ets språkinställning, inte sidans - ett
+  // vanligt textfält med 24-timmarsformat är förutsägbart oavsett det.
+  // Kombinationen tolkas som lokal tid av Date (ingen tidszon i strängen),
+  // och konverteras till UTC-Z för Graph, som webbläsaren redan känner till
+  // användarens tidszon för.
+  const TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+  function localDateTimeToIsoUtc(dateValue, timeValue) {
+    if (!dateValue) return null;
+    const time = TIME_PATTERN.test(timeValue) ? timeValue : "00:00";
+    const d = new Date(dateValue + "T" + time + ":00");
     if (isNaN(d.getTime())) return null;
     return d.toISOString().replace(/\.\d{3}Z$/, "Z");
   }
@@ -378,8 +391,14 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 
     let query = "";
     if (mode === "range") {
-      const since = localInputToIsoUtc(document.getElementById("manualSince").value);
-      const until = localInputToIsoUtc(document.getElementById("manualUntil").value);
+      const since = localDateTimeToIsoUtc(
+        document.getElementById("manualSinceDate").value,
+        document.getElementById("manualSinceTime").value
+      );
+      const until = localDateTimeToIsoUtc(
+        document.getElementById("manualUntilDate").value,
+        document.getElementById("manualUntilTime").value
+      );
       if (!since && !until) {
         document.getElementById("error").innerHTML =
           '<div class="error">Ange minst "Från" eller "Till" för intervall-läget.</div>';
@@ -402,10 +421,10 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
       const data = await res.json();
       let statusText = "Klart: " + data.classified + " mejl klassificerade.";
       if (mode === "range") {
-        // Visar exakt vilket UTC-intervall som faktiskt söktes i Graph, så
-        // man kan se direkt om den lokala tiden omvandlades rätt - ingen
-        // devtools-nätverksflik behövs för att felsöka en tom träff.
-        statusText += " (sökte UTC " + (data.since || "-") + " till " + (data.until || "-") + ")";
+        // Visar sökintervallet i din lokala tid (inte UTC) - samma info som
+        // behövs för att felsöka en tom träff, utan att blanda in UTC.
+        statusText += " (sökte " + (data.since ? fmtLocalTime(data.since) : "-") +
+          " till " + (data.until ? fmtLocalTime(data.until) : "-") + ")";
       }
       statusEl.textContent = statusText;
       await loadStats();

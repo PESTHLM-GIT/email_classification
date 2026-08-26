@@ -168,10 +168,15 @@ dashboarden, med två lägen:
 - **Senaste antal mejl** - klassificerar de N senaste (mottagningsordning).
   Motsvarar `POST /api/classify-recent?top=50`.
 - **Mellan två tidpunkter** - klassificerar alla mejl mottagna i ett
-  datumintervall (du väljer i din lokala tidszon, sidan räknar om till UTC
-  åt dig), upp till 200 mejl. Motsvarar
-  `POST /api/classify-recent?since=<ISO8601>&until=<ISO8601>` (endera kan
-  utelämnas).
+  datumintervall, upp till 200 mejl. Datum väljs med en vanlig
+  datumväljare, klockslag skrivs som text i 24-timmarsformat (TT:MM) - ett
+  vanligt textfält istället för webbläsarens inbyggda tidswidget, som annars
+  växlar mellan AM/PM och 24h beroende på webbläsarens/OS:ets
+  språkinställning snarare än sidans. Allt tolkas som din lokala tid; sidan
+  räknar om till UTC åt dig bakom kulisserna (Graph vill ha UTC), men visar
+  aldrig UTC i sig - statusraden efter en sökning visar sökintervallet i din
+  lokala tid. Motsvarar `POST /api/classify-recent?since=<ISO8601>&until=<ISO8601>`
+  (endera kan utelämnas) om du anropar API:et direkt.
 
 ## Läsa resultat-tabellen
 
