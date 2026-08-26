@@ -400,7 +400,14 @@ _DASHBOARD_TEMPLATE = """<!DOCTYPE html>
       const res = await fetch("/api/classify-recent" + query, { method: "POST" });
       if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
       const data = await res.json();
-      statusEl.textContent = "Klart: " + data.classified + " mejl klassificerade.";
+      let statusText = "Klart: " + data.classified + " mejl klassificerade.";
+      if (mode === "range") {
+        // Visar exakt vilket UTC-intervall som faktiskt söktes i Graph, så
+        // man kan se direkt om den lokala tiden omvandlades rätt - ingen
+        // devtools-nätverksflik behövs för att felsöka en tom träff.
+        statusText += " (sökte UTC " + (data.since || "-") + " till " + (data.until || "-") + ")";
+      }
+      statusEl.textContent = statusText;
       await loadStats();
     } catch (e) {
       statusEl.textContent = "";

@@ -185,7 +185,10 @@ def classify_recent(req: func.HttpRequest) -> func.HttpResponse:
     storage.record_invocation("classify_recent", time.perf_counter() - start)
 
     return func.HttpResponse(
-        json.dumps({"classified": len(results), "results": results}, ensure_ascii=False),
+        json.dumps(
+            {"classified": len(results), "results": results, "mailbox": mailbox, "since": since, "until": until},
+            ensure_ascii=False,
+        ),
         status_code=200,
         mimetype="application/json",
     )
